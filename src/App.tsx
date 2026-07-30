@@ -1,6 +1,7 @@
 import { Download, FileImage, ShieldCheck } from "lucide-react";
 import { ChangeEvent, PointerEvent, useEffect, useRef, useState } from "react";
 import { Button } from "./components/ui/button";
+import { createBatchOriginalPdfZip } from "./lib/batch-pdf";
 import { createPdfFilename } from "./lib/export-name";
 import { createOriginalPdf, createPdfFromCanvas } from "./lib/pdf";
 import { type DecodeImage, validateSourceImage } from "./lib/source-image";
@@ -39,7 +40,7 @@ function downloadBlob(blob: Blob, filename: string) {
   link.href = url;
   link.download = filename;
   link.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
 function canvasBlob(canvas: HTMLCanvasElement, type: ExportMimeType) {
@@ -49,12 +50,15 @@ function canvasBlob(canvas: HTMLCanvasElement, type: ExportMimeType) {
 }
 
 export default function App() {
-  const [sourceImage, setSourceImage] = useState<SourceImage>();
+  const [sourceImages, setSourceImages] = useState<SourceImage[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [error, setError] = useState("");
   const [isDesktop, setIsDesktop] = useState(matchesDesktopBreakpoint);
   const [isExporting, setIsExporting] = useState(false);
   const [watermark, setWatermark] = useState<WatermarkConfig>(createWatermarkConfig);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const selectionRevision = useRef(0);
+  const sourceImage = sourceImages[currentImageIndex];
 
   useEffect(() => {
     const media = window.matchMedia("(min-width: 768px)");
@@ -63,7 +67,7 @@ export default function App() {
     return () => media.removeEventListener("change", update);
   }, []);
 
-  useEffect(() => () => sourceImage && URL.revokeObjectURL(sourceImage.previewUrl), [sourceImage]);
+  useEffect(() => () => sourceImages.forEach((image) => URL.revokeObjectURL(image.previewUrl)), [sourceImages]);
 
   useEffect(() => {
     if (!sourceImage || !canvasRef.current) return;
@@ -77,17 +81,31 @@ export default function App() {
     return () => { cancelled = true; };
   }, [sourceImage, watermark]);
 
-  async function selectImage(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  async function selectImages(event: ChangeEvent<HTMLInputElement>) {
+    const revision = selectionRevision.current + 1;
+    selectionRevision.current = revision;
+    const files = Array.from(event.target.files ?? []).slice(0, isDesktop ? undefined : 1);
     event.target.value = "";
-    if (!file) return;
-    const validation = await validateSourceImage(file, decodeImage);
-    if (!validation.ok) {
-      setError(validation.message);
+    if (!files.length) return;
+    const accepted: SourceImage[] = [];
+    const errors: string[] = [];
+    for (const file of files) {
+      const validation = await validateSourceImage(file, decodeImage);
+      if (validation.ok) {
+        accepted.push({ file, previewUrl: URL.createObjectURL(file) });
+      } else {
+        errors.push(validation.message);
+      }
+    }
+    if (revision !== selectionRevision.current) {
+      accepted.forEach((image) => URL.revokeObjectURL(image.previewUrl));
       return;
     }
-    setError("");
-    setSourceImage({ file, previewUrl: URL.createObjectURL(file) });
+    if (accepted.length) {
+      setSourceImages(accepted);
+      setCurrentImageIndex(0);
+    }
+    setError(errors.length ? errors.join("；") : "");
   }
 
   async function downloadPdf() {
@@ -98,6 +116,20 @@ export default function App() {
       downloadBlob(new Blob([await createOriginalPdf(sourceImage.file) as Uint8Array<ArrayBuffer>], { type: "application/pdf" }), createPdfFilename(sourceImage.file.name));
     } catch {
       setError("PDF 导出失败，请更换图片后重试");
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  async function downloadBatchPdf() {
+    if (sourceImages.length < 2) return;
+    setIsExporting(true);
+    setError("");
+    try {
+      const zip = await createBatchOriginalPdfZip(sourceImages.map((image) => image.file), createOriginalPdf);
+      downloadBlob(new Blob([zip as Uint8Array<ArrayBuffer>], { type: "application/zip" }), "原图-PDF-批量导出.zip");
+    } catch {
+      setError("批量 PDF 导出失败，请更换图片后重试");
     } finally {
       setIsExporting(false);
     }
@@ -137,7 +169,7 @@ export default function App() {
   return <main className="page-shell">
     <header>
       <p className="eyebrow">本地图像处理</p>
-      <h1>单图文字水印</h1>
+      <h1>图像转换与文字水印</h1>
       <p className="lead">配置文字水印。预览、图片、PDF 使用同一渲染结果。</p>
     </header>
 
@@ -146,17 +178,22 @@ export default function App() {
       <div><strong>仅在此处理会话内处理</strong><span>文件不会上传；刷新或关闭页面即清除。</span></div>
     </section>
 
-    <section className="workspace" aria-label="单图水印导出">
+    <section className="workspace" aria-label="图像处理与导出">
       <div className="picker">
         <FileImage aria-hidden="true" size={28} />
         <h2>选择源图片</h2>
-        <p>{isDesktop ? "当前版本一次处理一张图片。" : "移动端仅支持单图导出。"}</p>
-        <label className="file-button">选择源图片<input aria-label="选择源图片" type="file" accept="image/*" onChange={selectImage} /></label>
+        <p>{isDesktop ? "桌面端可选择多张源图片并批量导出。" : "移动端仅支持单图导出。"}</p>
+        <label className="file-button">选择源图片<input aria-label="选择源图片" type="file" accept="image/*" multiple={isDesktop} onChange={selectImages} /></label>
         <small>支持浏览器可解码静态图片。动图、超过 20 MB、最长边超过 8,000 px 的图片不可处理。</small>
+        {isDesktop && sourceImages.length > 1 && <div className="thumbnail-list" aria-label="源图片缩略图列表">
+          {sourceImages.map((image, index) => <button className={index === currentImageIndex ? "thumbnail active" : "thumbnail"} key={image.previewUrl} type="button" onClick={() => setCurrentImageIndex(index)}>
+            <img alt="" src={image.previewUrl} />{image.file.name}
+          </button>)}
+        </div>}
       </div>
 
       <div className="preview-area">
-        {sourceImage ? <canvas ref={canvasRef} className="preview-image" aria-label="水印预览" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); dragWatermark(event); }} onPointerMove={(event) => event.currentTarget.hasPointerCapture(event.pointerId) && dragWatermark(event)} /> : <p>选择一张源图片后在此预览</p>}
+        {sourceImage ? <><canvas ref={canvasRef} className="preview-image" aria-label="水印预览" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); dragWatermark(event); }} onPointerMove={(event) => event.currentTarget.hasPointerCapture(event.pointerId) && dragWatermark(event)} /><p className="current-image">当前预览：{sourceImage.file.name}{sourceImages.length > 1 && `（${currentImageIndex + 1} / ${sourceImages.length}）`}</p></> : <p>选择一张源图片后在此预览</p>}
       </div>
 
       <div className="settings-panel">
@@ -180,6 +217,7 @@ export default function App() {
           <Button disabled={!sourceImage || isExporting} onClick={() => downloadWatermark("image/webp")}>下载水印 WebP</Button>
           <Button disabled={!sourceImage || isExporting} onClick={() => downloadWatermark("application/pdf")}><Download aria-hidden="true" size={18} />下载水印 PDF</Button>
           <Button disabled={!sourceImage || isExporting} onClick={downloadPdf}>下载原图 PDF</Button>
+          {isDesktop && <Button disabled={sourceImages.length < 2 || isExporting} onClick={downloadBatchPdf}>下载批量原图 PDF ZIP</Button>}
         </div>
       </div>
     </section>
