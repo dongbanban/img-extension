@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clampPositionForImage,
   createWatermarkConfig,
+  relativePositionToPixels,
   watermarkFitScale,
   watermarkBounds,
   watermarkFilename,
@@ -28,5 +29,12 @@ describe("文字水印规则", () => {
   it("按图片格式生成水印导出名", () => {
     expect(watermarkFilename("photo.heic", "image/webp")).toBe("photo-watermarked.webp");
     expect(watermarkFilename("photo.jpg", "application/pdf")).toBe("photo-watermarked.pdf");
+  });
+
+  it("将同一相对水印位置映射到不同尺寸的源图片", () => {
+    const position = { x: 0.25, y: 0.75 };
+
+    expect(relativePositionToPixels(position, { width: 400, height: 200 })).toEqual({ x: 100, y: 150 });
+    expect(relativePositionToPixels(position, { width: 1600, height: 800 })).toEqual({ x: 400, y: 600 });
   });
 });

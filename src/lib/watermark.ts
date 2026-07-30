@@ -14,6 +14,10 @@ export type WatermarkConfig = {
 
 export type ImageDimensions = { width: number; height: number };
 
+export function relativePositionToPixels(position: RelativePosition, image: ImageDimensions) {
+  return { x: position.x * image.width, y: position.y * image.height };
+}
+
 export function createWatermarkConfig(): WatermarkConfig {
   return {
     text: "仅供内部使用",
@@ -95,7 +99,8 @@ export function drawWatermark(context: CanvasRenderingContext2D, image: ImageDim
     }
   } else {
     const position = clampPositionForImage(config.position, image, textWidth, config.rotation, textHeight);
-    drawAt(position.x * image.width, position.y * image.height);
+    const pixels = relativePositionToPixels(position, image);
+    drawAt(pixels.x, pixels.y);
   }
   context.restore();
 }

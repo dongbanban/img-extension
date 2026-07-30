@@ -2,6 +2,7 @@ import { Download, FileImage, ShieldCheck } from "lucide-react";
 import { ChangeEvent, PointerEvent, useEffect, useRef, useState } from "react";
 import { Button } from "./components/ui/button";
 import { createBatchOriginalPdfZip } from "./lib/batch-pdf";
+import { createBatchWatermarkZip } from "./lib/batch-watermark";
 import { createPdfFilename } from "./lib/export-name";
 import { createOriginalPdf, createPdfFromCanvas } from "./lib/pdf";
 import { type DecodeImage, validateSourceImage } from "./lib/source-image";
@@ -152,6 +153,24 @@ export default function App() {
     }
   }
 
+  async function downloadBatchWatermark(type: ExportMimeType | "application/pdf") {
+    if (sourceImages.length < 2) return;
+    setIsExporting(true);
+    setError("");
+    try {
+      const zip = await createBatchWatermarkZip(sourceImages.map((image) => image.file), type, watermark, async (file, config) => {
+        const canvas = await createWatermarkedCanvas(file, config);
+        if (type === "application/pdf") return await createPdfFromCanvas(canvas);
+        return new Uint8Array(await (await canvasBlob(canvas, type)).arrayBuffer());
+      });
+      downloadBlob(new Blob([zip as Uint8Array<ArrayBuffer>], { type: "application/zip" }), `文字水印-${type === "application/pdf" ? "PDF" : type.slice(6).toUpperCase()}-批量导出.zip`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "批量水印导出失败，请重试");
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   function dragWatermark(event: PointerEvent<HTMLCanvasElement>) {
     if (!sourceImage || watermark.repeated || !canvasRef.current) return;
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -218,6 +237,10 @@ export default function App() {
           <Button disabled={!sourceImage || isExporting} onClick={() => downloadWatermark("application/pdf")}><Download aria-hidden="true" size={18} />下载水印 PDF</Button>
           <Button disabled={!sourceImage || isExporting} onClick={downloadPdf}>下载原图 PDF</Button>
           {isDesktop && <Button disabled={sourceImages.length < 2 || isExporting} onClick={downloadBatchPdf}>下载批量原图 PDF ZIP</Button>}
+          {isDesktop && <Button disabled={sourceImages.length < 2 || isExporting} onClick={() => downloadBatchWatermark("image/png")}>下载批量水印 PNG ZIP</Button>}
+          {isDesktop && <Button disabled={sourceImages.length < 2 || isExporting} onClick={() => downloadBatchWatermark("image/jpeg")}>下载批量水印 JPEG ZIP</Button>}
+          {isDesktop && <Button disabled={sourceImages.length < 2 || isExporting} onClick={() => downloadBatchWatermark("image/webp")}>下载批量水印 WebP ZIP</Button>}
+          {isDesktop && <Button disabled={sourceImages.length < 2 || isExporting} onClick={() => downloadBatchWatermark("application/pdf")}>下载批量水印 PDF ZIP</Button>}
         </div>
       </div>
     </section>
