@@ -1,5 +1,5 @@
 export {};
-function sourceBasename(filename: string) {
+export function sourceBasename(filename: string) {
   const finalDot = filename.lastIndexOf(".");
   return finalDot > 0 ? filename.slice(0, finalDot) : filename;
 }

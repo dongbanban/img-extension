@@ -24,12 +24,16 @@ export async function createOriginalPdf(file: File) {
     canvas.height = image.naturalHeight;
     canvas.getContext("2d")!.drawImage(image, 0, 0);
 
-    const pdf = await PDFDocument.create();
-    const page = pdf.addPage([image.naturalWidth, image.naturalHeight]);
-    const png = await pdf.embedPng(await (await canvasToPng(canvas)).arrayBuffer());
-    page.drawImage(png, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() });
-    return pdf.save();
+    return createPdfFromCanvas(canvas);
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+export async function createPdfFromCanvas(canvas: HTMLCanvasElement) {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([canvas.width, canvas.height]);
+  const png = await pdf.embedPng(await (await canvasToPng(canvas)).arrayBuffer());
+  page.drawImage(png, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() });
+  return pdf.save();
 }

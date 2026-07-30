@@ -8,7 +8,7 @@ test("桌面用户可选择单张源图片、预览并下载无白边 PDF", asyn
   await page.goto("/");
   await page.getByLabel("选择源图片").setInputFiles(fixture);
 
-  await expect(page.getByRole("img", { name: "源图片预览" })).toBeVisible();
+  await expect(page.getByLabel("水印预览")).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "下载原图 PDF" }).click();
   const download = await downloadPromise;
@@ -31,7 +31,7 @@ test("移动端只允许一张源图片且提供 PDF 导出", async ({ page }, t
   await page.getByLabel("选择源图片").setInputFiles(fixture);
 
   await expect(page.getByText("移动端仅支持单图导出")).toBeVisible();
-  await expect(page.getByRole("img", { name: "源图片预览" })).toBeVisible();
+  await expect(page.getByLabel("水印预览")).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "下载原图 PDF" }).click();
   expect((await downloadPromise).suggestedFilename()).toBe("sample.pdf");
@@ -45,5 +45,5 @@ test("桌面与移动端拒绝动图并说明限制", async ({ page }) => {
     buffer: Buffer.from("GIF89a"),
   });
   await expect(page.getByRole("alert")).toHaveText("不支持动图");
-  await expect(page.getByRole("img", { name: "源图片预览" })).not.toBeVisible();
+  await expect(page.getByLabel("水印预览")).not.toBeVisible();
 });
