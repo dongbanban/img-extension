@@ -37,6 +37,31 @@ test("移动端只允许一张源图片且提供 PDF 导出", async ({ page }, t
   expect((await downloadPromise).suggestedFilename()).toBe("sample.pdf");
 });
 
+test("移动端有系统分享能力时，将 PDF 交给系统分享菜单", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "移动端专属场景");
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "canShare", { value: () => true, configurable: true });
+    Object.defineProperty(navigator, "share", {
+      value: async (data: ShareData) => {
+        const file = data.files?.[0];
+        (window as Window & { sharedPdf?: { name: string; type: string } }).sharedPdf = file
+          ? { name: file.name, type: file.type }
+          : undefined;
+      },
+      configurable: true,
+    });
+  });
+  await page.goto("/");
+  await page.getByLabel("选择源图片").setInputFiles(fixture);
+  await expect(page.getByLabel("水印预览")).toBeVisible();
+
+  await page.getByRole("button", { name: "下载原图 PDF" }).click();
+  await expect.poll(() => page.evaluate(() => (window as Window & { sharedPdf?: { name: string; type: string } }).sharedPdf)).toEqual({
+    name: "sample.pdf",
+    type: "application/pdf",
+  });
+});
+
 test("桌面与移动端拒绝动图并说明限制", async ({ page }) => {
   await page.goto("/");
   await page.getByLabel("选择源图片").setInputFiles({

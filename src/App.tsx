@@ -35,7 +35,19 @@ function matchesDesktopBreakpoint() {
   return window.matchMedia("(min-width: 768px)").matches;
 }
 
-function downloadBlob(blob: Blob, filename: string) {
+async function downloadBlob(blob: Blob, filename: string, useSystemShare = false) {
+  if (useSystemShare && "share" in navigator && "canShare" in navigator) {
+    const file = new File([blob], filename, { type: blob.type });
+    const shareData = { files: [file], title: filename };
+    if (navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+  }
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -114,7 +126,7 @@ export default function App() {
     setIsExporting(true);
     setError("");
     try {
-      downloadBlob(new Blob([await createOriginalPdf(sourceImage.file) as Uint8Array<ArrayBuffer>], { type: "application/pdf" }), createPdfFilename(sourceImage.file.name));
+      await downloadBlob(new Blob([await createOriginalPdf(sourceImage.file) as Uint8Array<ArrayBuffer>], { type: "application/pdf" }), createPdfFilename(sourceImage.file.name), !isDesktop);
     } catch {
       setError("PDF 导出失败，请更换图片后重试");
     } finally {
@@ -145,7 +157,7 @@ export default function App() {
       const blob = type === "application/pdf"
         ? new Blob([await createPdfFromCanvas(canvas) as Uint8Array<ArrayBuffer>], { type })
         : await canvasBlob(canvas, type);
-      downloadBlob(blob, watermarkFilename(sourceImage.file.name, type));
+      await downloadBlob(blob, watermarkFilename(sourceImage.file.name, type), !isDesktop && type === "application/pdf");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "水印导出失败，请重试");
     } finally {
