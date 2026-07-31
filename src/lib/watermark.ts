@@ -22,7 +22,7 @@ export function createWatermarkConfig(): WatermarkConfig {
   return {
     text: "仅供内部使用",
     fontSize: 36,
-    color: "#ffffff",
+    color: "#ff0000",
     opacity: 70,
     rotation: -30,
     position: { x: 0.5, y: 0.5 },

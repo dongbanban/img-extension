@@ -40,3 +40,15 @@ test("用户可启用重复水印", async ({ page }) => {
   await page.getByLabel("重复水印").check();
   await expect(page.getByText("重复水印将以固定网格覆盖整图")).toBeVisible();
 });
+
+test("用户可清空字号后输入新数值", async ({ page }) => {
+  await page.goto("/");
+  const fontSize = page.getByLabel("字号");
+
+  await expect(fontSize).toHaveValue("36");
+  await fontSize.press("ControlOrMeta+A");
+  await fontSize.press("Backspace");
+  await expect(fontSize).toHaveValue("");
+  await fontSize.fill("48");
+  await expect(fontSize).toHaveValue("48");
+});

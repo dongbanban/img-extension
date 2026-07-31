@@ -22,6 +22,10 @@ describe("文字水印规则", () => {
     expect(createWatermarkConfig().verticalSpacing).toBeGreaterThan(0);
   });
 
+  it("默认使用红色水印", () => {
+    expect(createWatermarkConfig().color).toBe("#ff0000");
+  });
+
   it("缩小无法容纳在图片内的旋转文字", () => {
     expect(watermarkFitScale({ width: 100, height: 80 }, 600, 100, 45)).toBeLessThan(1);
   });

@@ -69,6 +69,7 @@ export default function App() {
   const [isDesktop, setIsDesktop] = useState(matchesDesktopBreakpoint);
   const [isExporting, setIsExporting] = useState(false);
   const [watermark, setWatermark] = useState<WatermarkConfig>(createWatermarkConfig);
+  const [fontSizeInput, setFontSizeInput] = useState(() => String(createWatermarkConfig().fontSize));
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const selectionRevision = useRef(0);
   const sourceImage = sourceImages[currentImageIndex];
@@ -230,7 +231,11 @@ export default function App() {
       <div className="settings-panel">
         <h2>文字水印</h2>
         <label>水印文字<input aria-label="水印文字" value={watermark.text} onChange={(event) => setWatermark({ ...watermark, text: event.target.value })} /></label>
-        <label>字号<input aria-label="字号" type="number" min="12" max="400" value={watermark.fontSize} onChange={(event) => setWatermark({ ...watermark, fontSize: Number(event.target.value) })} /></label>
+        <label>字号<input aria-label="字号" type="number" min="12" max="400" value={fontSizeInput} onChange={(event) => {
+          const value = event.target.value;
+          setFontSizeInput(value);
+          if (value !== "") setWatermark({ ...watermark, fontSize: Number(value) });
+        }} /></label>
         <label>颜色<input aria-label="颜色" type="color" value={watermark.color} onChange={(event) => setWatermark({ ...watermark, color: event.target.value })} /></label>
         <label>不透明度<input aria-label="不透明度" type="number" min="0" max="100" value={watermark.opacity} onChange={(event) => setWatermark({ ...watermark, opacity: Number(event.target.value) })} /></label>
         <label>旋转角度<input aria-label="旋转角度" type="number" min="-180" max="180" value={watermark.rotation} onChange={(event) => setWatermark({ ...watermark, rotation: Number(event.target.value) })} /></label>
